@@ -1,60 +1,68 @@
 const express = require('express');
-const { v4: uuidv4 } = require('uuid');
-const multer = require('multer');
-const admin = require('firebase-admin');
-
 const router = express.Router();
+const admin = require('firebase-admin');
+const multer = require('multer');
+const { v4: uuidv4 } = require('uuid');
+
+// Firebase references
 const db = admin.firestore();
 const bucket = admin.storage().bucket();
 
-// ใช้ Multer รับไฟล์ upload (จำกัด 4 รูป)
-const upload = multer({ storage: multer.memoryStorage() });
+// Multer config (รับไฟล์จาก memory)
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
 router.post('/save', upload.array('images', 4), async (req, res) => {
   try {
+    console.log('📥 BODY:', req.body);
+    console.log('📸 FILES:', req.files);
+
     const { productName, productPrice, productDesc, mainType, subType, subSubType } = req.body;
     const files = req.files;
 
-    // ตรวจสอบข้อมูล
     if (!productName || !mainType) {
-      return res.status(400).json({ error: 'Missing productName or mainType' });
+      return res.status(400).json({ error: '❌ Missing productName or mainType' });
     }
 
-    // อัปโหลดรูปไป Storage
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: '❌ ไม่มีไฟล์รูปภาพแนบมา' });
+    }
+
     const imageUrls = [];
 
     for (const file of files) {
-      const filename = `products/${Date.now()}_${uuidv4()}_${file.originalname}`;
+      const filename = `products/${uuidv4()}_${file.originalname}`;
       const fileRef = bucket.file(filename);
 
       await fileRef.save(file.buffer, {
-        metadata: { contentType: file.mimetype }
+        metadata: { contentType: file.mimetype },
       });
 
-      const url = await fileRef.getSignedUrl({
+      const [url] = await fileRef.getSignedUrl({
         action: 'read',
-        expires: '03-01-2030'
+        expires: '03-01-2030',
       });
 
-      imageUrls.push(url[0]);
+      imageUrls.push(url);
     }
 
-    // สร้างข้อมูลใน Firestore
-    await db.collection('products').add({
+    const newDoc = await db.collection('products').add({
       productName,
-      productPrice,
+      productPrice: parseFloat(productPrice),
       productDesc,
       mainType,
       subType,
       subSubType,
-      images: imageUrls,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      imageURLs: imageUrls,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    res.json({ message: '✅ Product saved successfully' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: '🔥 Error saving product' });
+    console.log(`✅ Product saved with ID: ${newDoc.id}`);
+
+    return res.json({ message: '✅ บันทึกสินค้าสำเร็จผ่าน backend!' });
+  } catch (error) {
+    console.error('❌ Save product error:', error);
+    return res.status(500).json({ error: '❌ เกิดข้อผิดพลาดในการบันทึกสินค้า' });
   }
 });
 
