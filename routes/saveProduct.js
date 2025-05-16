@@ -1,68 +1,62 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const admin = require('firebase-admin');
-const multer = require('multer');
-const { v4: uuidv4 } = require('uuid');
+const multer = require("multer");
+const { v4: uuidv4 } = require("uuid");
+const { db, bucket } = require("../firebaseConfig");
 
-// Firebase references
-const db = admin.firestore();
-const bucket = admin.storage().bucket();
+// ตั้งค่า multer ให้เก็บไฟล์ใน memory (RAM)
+const upload = multer({ storage: multer.memoryStorage() });
 
-// Multer config (รับไฟล์จาก memory)
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
-
-router.post('/save', upload.array('images', 4), async (req, res) => {
+// POST /api/save — รับข้อมูลและรูปภาพสินค้า
+router.post("/save", upload.array("images", 4), async (req, res) => {
   try {
-    console.log('📥 BODY:', req.body);
-    console.log('📸 FILES:', req.files);
-
     const { productName, productPrice, productDesc, mainType, subType, subSubType } = req.body;
     const files = req.files;
 
-    if (!productName || !mainType) {
-      return res.status(400).json({ error: '❌ Missing productName or mainType' });
-    }
+    const productId = uuidv4();
+    const imageFiles = [];
 
-    if (!files || files.length === 0) {
-      return res.status(400).json({ error: '❌ ไม่มีไฟล์รูปภาพแนบมา' });
-    }
-
-    const imageUrls = [];
-
+    // อัปโหลดไฟล์ทั้งหมดทีละไฟล์
     for (const file of files) {
-      const filename = `products/${uuidv4()}_${file.originalname}`;
-      const fileRef = bucket.file(filename);
+      const fileName = `products/${productId}_${file.originalname}`;
+      const fileUpload = bucket.file(fileName);
 
-      await fileRef.save(file.buffer, {
+      await fileUpload.save(file.buffer, {
         metadata: { contentType: file.mimetype },
       });
 
-      const [url] = await fileRef.getSignedUrl({
-        action: 'read',
-        expires: '03-01-2030',
-      });
+      // สร้าง Public URL ที่ไม่หมดอายุ
+      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
 
-      imageUrls.push(url);
+      imageFiles.push({
+        url: publicUrl,
+        name: file.originalname,
+        type: file.mimetype,
+        size: file.size,
+      });
     }
 
-    const newDoc = await db.collection('products').add({
+    // เตรียมข้อมูลสินค้า
+    const productData = {
+      productId,
       productName,
-      productPrice: parseFloat(productPrice),
+      productPrice,
       productDesc,
       mainType,
       subType,
       subSubType,
-      imageURLs: imageUrls,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+      imageFiles,
+      createdAt: new Date(),
+    };
 
-    console.log(`✅ Product saved with ID: ${newDoc.id}`);
+    // บันทึกใน Firestore
+    await db.collection("products").doc(productId).set(productData);
 
-    return res.json({ message: '✅ บันทึกสินค้าสำเร็จผ่าน backend!' });
+    console.log("✅ Product saved with ID:", productId);
+    res.status(200).send({ message: "✅ บันทึกสินค้าเรียบร้อย", productId });
   } catch (error) {
-    console.error('❌ Save product error:', error);
-    return res.status(500).json({ error: '❌ เกิดข้อผิดพลาดในการบันทึกสินค้า' });
+    console.error("❌ Save product error:", error);
+    res.status(500).send({ error: "ไม่สามารถบันทึกสินค้าได้" });
   }
 });
 
