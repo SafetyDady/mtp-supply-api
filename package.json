@@ -1,4 +1,10 @@
 {
+  "name": "mtp-supply-api",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node --openssl-legacy-provider index.js"
+  },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
