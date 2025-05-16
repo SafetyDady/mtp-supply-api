@@ -1,20 +1,20 @@
-# ✅ ใช้ Node.js 18 ที่รองรับ legacy OpenSSL provider
-FROM node:18
+# ✅ ใช้ Node.js LTS รุ่น 16 ที่ไม่มีปัญหา OpenSSL 3
+FROM node:16
 
-# ✅ ตั้งโฟลเดอร์ทำงานภายใน container
+# ✅ กำหนด working directory ภายใน container
 WORKDIR /app
 
-# ✅ คัดลอกไฟล์ package.json และ package-lock.json เพื่อแคช layer install
+# ✅ copy ไฟล์ package.json และ package-lock.json (ถ้ามี) ก่อน เพื่อให้ layer install แคชได้
 COPY package*.json ./
 
 # ✅ ติดตั้ง dependencies
 RUN npm install
 
-# ✅ คัดลอกไฟล์ทั้งหมดในโปรเจกต์ลง container
+# ✅ copy ไฟล์ project ทั้งหมด
 COPY . .
 
-# ✅ เปิดพอร์ต 5001 ให้ Railway เข้าถึง
+# ✅ เปิดพอร์ต 5001 ให้ Railway เข้าได้
 EXPOSE 5001
 
-# ✅ รัน server พร้อมเปิดใช้งาน legacy OpenSSL provider เหนื่อยมาก S นายรู้ไหม
-ENTRYPOINT ["node", "--openssl-legacy-provider", "index.js"]
+# ✅ สั่งรัน index.js (ซึ่งเรายืนยันแล้วว่าเป็นไฟล์ที่รัน server จริง)ผมจะแก้ Dockerfile อีก "1 ครั้งสุดท้าย" เท่านั้น
+ENTRYPOINT ["node", "index.js"]
