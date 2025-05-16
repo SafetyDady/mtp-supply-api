@@ -25,7 +25,7 @@ router.post("/save", upload.array("images", 4), async (req, res) => {
         metadata: { contentType: file.mimetype },
       });
 
-      // สร้าง Public URL ที่ไม่หมดอายุ
+      // สร้าง Public URL ที่ไม่หมดอายุจริงๆนะน้องนะ
       const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
 
       imageFiles.push({
